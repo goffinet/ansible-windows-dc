@@ -197,8 +197,14 @@ Connection to wks1 closed.
 logout
 ```
 
+## Next steps
+
+- Create a share on Workstation for a Group and mount it on the others
+- Users and Permissions Management
+
 ## Credits
 
 - [Windows Server 2022 rgl/windows-vagrant images](https://github.com/rgl/windows-vagrant)
 - [rgl/windows-domain-controller-vagrant](https://github.com/rgl/windows-domain-controller-vagrant)
 - [WSMan Test Environment](https://github.com/jborean93/wsman-environment)
+- [Active Directory Lab](https://github.com/alebov/AD-lab)
