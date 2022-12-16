@@ -1,0 +1,14 @@
+domain_users:
+  - firstname: "john"
+    surname: "doe"
+    password: "{{ main_password }}"
+    password_never_expires: yes
+    groups:
+      - "Domain Admins"
+  - firstname: "jane"
+    surname: "doe"
+    password: "{{ main_password }}"
+    password_never_expires: yes
+    groups:
+      - "Domain Admins"
+managed_sa: sa_test

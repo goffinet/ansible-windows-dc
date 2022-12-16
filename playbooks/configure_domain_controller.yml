@@ -1,0 +1,77 @@
+---
+- hosts: domain_controllers
+  gather_facts: false
+  tasks:
+    - name: Sets vagrant as a domain administrator. Necessary to allow vagrant to add a KDS key.
+      community.windows.win_domain_group_membership:
+        name: Domain Admins
+        members:
+          - "{{ ansible_user }}"
+        state: present
+    - name: Add the vagrant user to the Enterprise Admins group. This is needed to install the Enterprise Root Certification Authority.
+      community.windows.win_domain_group_membership:
+        name: Enterprise Admins
+        members:
+          - "{{ dns_domain_name }}\\{{ ansible_user }}"
+        state: present
+    - name: Add a group Managed Service Account (gMSA)
+      ansible.windows.win_shell: |
+        Add-KdsRootKey -EffectiveTime (Get-Date).AddHours(-10) | Out-Null
+
+        New-ADServiceAccount -Path 'CN=Managed Service Accounts,{{ domain_dn }}' -DNSHostName {{ dns_domain_name }} -Name {{ hostvars[groups['domain_controllers'][0]].managed_sa }}
+
+        Set-ADServiceAccount -Identity {{ hostvars[groups['domain_controllers'][0]].managed_sa }} -PrincipalsAllowedToRetrieveManagedPassword @{Add='Domain Computers','Domain Servers'}
+
+        Test-ADServiceAccount -Identity {{ hostvars[groups['domain_controllers'][0]].managed_sa }} | Out-Null
+
+      register: add_gmsa
+    - debug:
+        var: add_gmsa
+    - name: Ensure user is present in OU
+      community.windows.win_domain_user:
+        name: "{{ item.firstname }}.{{ item.surname }}"
+        firstname: "{{ item.firstname }}"
+        surname: "{{ item.surname }}"
+        upn: "{{ item.firstname }}.{{ item.surname }}@{{ dns_domain_name }}"
+        password: "{{ item.password }}"
+        state: present
+        path: "CN=Users,{{ domain_dn }}"
+        password_never_expires: "{{ item.password_never_expires }}"
+        groups: "{{ item.groups }}"
+      loop: "{{ hostvars[groups['domain_controllers'][0]].domain_users }}"
+      no_log: true
+    - name: Get reporting about Group Membership
+      ansible.windows.win_shell: |
+        Get-ADPrincipalGroupMembership -Identity '{{ item }}' | Select-Object Name,DistinguishedName,SID | Format-Table -AutoSize | Out-String -Width 2000
+
+      loop:
+        - john.doe
+        - jane.doe
+        - vagrant
+      register: accounts_reporting
+    - debug:
+        var: accounts_reporting
+    - name: Get reporting about groups created
+      ansible.windows.win_shell: |
+        Get-ADGroupMember -Identity '{{ item }}' | Select-Object Name,DistinguishedName,SID | Format-Table -AutoSize | Out-String -Width 2000
+
+      loop:
+        - 'Enterprise Admins'
+        - 'Domain Admins'
+      register: groups_reporting
+    - debug:
+        var: groups_reporting
+    - name: Get reporting about Enabled Domain User Accounts
+      ansible.windows.win_shell: |
+        Get-ADUser -Filter {Enabled -eq $true} | Select-Object Name,DistinguishedName,SID | Format-Table -AutoSize | Out-String -Width 2000
+
+      register: users_reporting
+    - debug:
+        var: users_reporting
+    - name: Get reporting about Group Managed Service Accounts (gMSA) enabled
+      ansible.windows.win_shell: |
+        Get-ADServiceAccount -Filter {Enabled -eq $true} -Properties Name,DistinguishedName,SID,PrincipalsAllowedToRetrieveManagedPassword | Select-Object Name,DistinguishedName,SID,PrincipalsAllowedToRetrieveManagedPassword | Format-Table -AutoSize | Out-String -Width 2000
+
+      register: gmsa_reporting
+    - debug:
+        var: gmsa_reporting

@@ -1,0 +1,70 @@
+---
+- hosts: dc
+  gather_facts: false
+  vars:
+    ansible_connection: ssh
+    ansible_port: 22
+  tasks:
+    - name: Configure Domain Controller Network Adapter
+      ansible.windows.win_shell: |
+        $systemVendor = (Get-WmiObject Win32_ComputerSystemProduct Vendor).Vendor
+
+        $adapters = @(Get-NetAdapter -Physical)
+
+        if ($systemVendor -eq 'Microsoft Corporation') {
+            $adapters = $adapters | Sort-Object MacAddress
+        }
+
+        $domainControllerAdapter = $adapters[0]
+
+        $domainControllerAdapter | Remove-NetIPAddress -Confirm:$false
+
+        $domainControllerAdapter | Remove-NetRoute -Confirm:$false
+
+        $domainControllerAdapter | New-NetIpAddress -IpAddress {{ ip_address }} -PrefixLength 24 -DefaultGateway {{ ip_gateway }}
+
+      register: dc_adapter
+    - debug:
+        var: dc_adapter
+    - name: Change the hostname to {{ inventory_hostname }}
+      ansible.windows.win_hostname:
+        name: "{{ inventory_hostname }}"
+      register: change_hostname
+    - name: Reboot
+      ansible.windows.win_reboot:
+      when: change_hostname.reboot_required
+- hosts: dc
+  gather_facts: false
+  vars:
+  tasks:
+    - name: Resetting the Administrator account password and settings
+      ansible.windows.win_user:
+        name: Administrator
+        password: "{{ administrator_password }}"
+        password_never_expires: yes
+        user_cannot_change_password: no
+        account_disabled: yes
+    - name: Installing the AD services and administration tools
+      ansible.windows.win_feature:
+        name:
+          - AD-Domain-Services
+          - RSAT-AD-AdminCenter
+          - RSAT-ADDS-Tools
+        state: present
+    - name: Installing the AD forest (be patient)
+      ansible.windows.win_domain:
+        dns_domain_name: "{{ dns_domain_name }}"
+        domain_netbios_name: "{{ domain_netbios_name }}"
+        safe_mode_password: "{{ safe_mode_password }}"
+        create_dns_delegation: no
+        domain_mode: WinThreshold
+        forest_mode: WinThreshold
+      register: domain_install
+    - debug:
+        msg: "{{ domain_install }}"
+    - name: reboot
+      ansible.windows.win_reboot:
+      when: domain_install.reboot_required
+    - name: Pause
+      ansible.builtin.pause:
+        minutes: 5

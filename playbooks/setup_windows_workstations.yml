@@ -1,0 +1,52 @@
+---
+- hosts: workstations
+  gather_facts: false
+  tasks:
+    - name: Change the hostname to {{ inventory_hostname }}
+      ansible.windows.win_hostname:
+        name: "{{ inventory_hostname }}"
+      register: change_hostname
+    - name: Reboot
+      ansible.windows.win_reboot:
+      when: change_hostname.reboot_required
+    - name: Resetting the Administrator account password and settings
+      ansible.windows.win_user:
+        name: Administrator
+        password: "{{ administrator_password }}"
+        password_never_expires: yes
+        user_cannot_change_password: no
+        account_disabled: yes
+    - name: Configure all adapters whose names begin with Ethernet to use DHCP-assigned DNS values
+      ansible.windows.win_dns_client:
+        adapter_names: 'Ethernet*'
+        dns_servers:
+          - "{{ hostvars[groups['domain_controllers'][0]].ip_address }}"
+    - name: Installing the RSAT-AD-PowerShell Feature requirement
+      ansible.windows.win_feature:
+        name:
+          - RSAT-AD-PowerShell
+    - name: Add Workstations to the Domain
+      ansible.windows.win_domain_membership:
+        hostname: "{{ inventory_hostname }}"
+        dns_domain_name: "{{ dns_domain_name }}"
+        domain_admin_user: "{{ ansible_user }}@{{ dns_domain_name | upper }}"
+        domain_admin_password: "{{ ansible_password }}"
+        #domain_ou_path: "CN={{ inventory_hostname | upper }},CN=Computers,{{ domain_dn }}"
+        state: domain
+      register: domain_computer
+      async: 120
+    - debug:
+        msg: "{{ domain_computer }}"
+    - name: reboot
+      ansible.windows.win_reboot:
+      when: domain_computer.changed
+    - name: Get reporting about computer added
+      ansible.windows.win_shell: |
+        echo 'This PC Group Membership'
+
+        Get-ADComputer $env:COMPUTERNAME
+
+      register: computer_reporting
+      ignore_errors: yes
+    - debug:
+        var: computer_reporting

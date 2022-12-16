@@ -1,0 +1,22 @@
+[sssd]
+domains = {{ dns_domain_name }}
+config_file_version = 2
+services = nss, pam
+
+[domain/{{ dns_domain_name }}]
+krb5_realm = {{ dns_domain_name | upper }}
+realmd_tags = manages-system joined-with-adcli
+cache_credentials = True
+id_provider = ad
+default_shell = /bin/bash
+ldap_id_mapping = True
+use_fully_qualified_names = False
+fallback_homedir = /home/%u
+access_provider = ad
+ad_maximum_machine_account_password_age = 30
+ad_access_filter = DOM:{{ dns_domain_name }}:(memberOf:1.2.840.113556.1.4.1941:=cn=ADM_{{ inventory_hostname }},CN=Users,{{ domain_dn }})
+
+dyndns_update = false
+dyndns_update_ptr = false
+
+#debug_level = 9

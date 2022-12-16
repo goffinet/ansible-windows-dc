@@ -1,0 +1,36 @@
+[domain_controllers]
+dc ansible_host=11.12.13.109 ip_address=192.168.1.99 ip_gateway=192.168.1.1
+
+[servers]
+
+[linux]
+pc1
+srv1
+
+[workstations]
+wks1 ansible_host=11.12.13.121
+wks2 ansible_host=11.12.13.112
+
+[windows:children]
+domain_controllers
+servers
+workstations
+
+[windows:vars]
+ansible_user=vagrant
+ansible_password=vagrant
+ansible_shell_type=cmd
+ansible_connection=winrm
+ansible_winrm_transport=basic
+ansible_port=5985
+
+[linux:vars]
+ansible_user=root
+ansible_password=testtest
+
+[all:vars]
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+dns_domain_name="example.com"
+domain_netbios_name="EXAMPLE"
+domain_dn="DC=example,DC=com"
+main_password="HeyH0Password"

@@ -1,0 +1,13 @@
+---
+- hosts: windows
+  tasks:
+    - name: Ensure Chocolatey installed from chocolatey repo
+      chocolatey.chocolatey.win_chocolatey:
+        name: chocolatey
+        state: present
+        source: https://chocolatey.org/install.ps1
+    - name: Install Git
+      chocolatey.chocolatey.win_chocolatey:
+        name:
+          - git
+          - vim

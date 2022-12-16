@@ -1,0 +1,2 @@
+safe_mode_password: "{{ main_password }}"
+administrator_password: "{{ main_password }}"

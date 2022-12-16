@@ -1,0 +1,9 @@
+---
+- hosts: windows
+  gather_facts: false
+  tasks:
+    - name: run sysprep
+      ansible.windows.win_shell: C:\Windows\System32\Sysprep\sysprep.exe /generalize /shutdown /oobe /quiet
+      args:
+        executable: cmd
+      ignore_errors: yes
