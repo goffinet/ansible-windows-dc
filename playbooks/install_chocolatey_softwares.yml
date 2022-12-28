@@ -6,8 +6,10 @@
         name: chocolatey
         state: present
         source: https://chocolatey.org/install.ps1
-    - name: Install Git
+    - name: Install softwares
       chocolatey.chocolatey.win_chocolatey:
         name:
           - git
           - vim
+          - python3
+          - unzip

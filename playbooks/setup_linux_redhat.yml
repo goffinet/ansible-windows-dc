@@ -56,16 +56,21 @@
         name: "{{ pkgs }}"
         state: present
         update_cache: yes
-    - name: Joinining the AD realm (creating AD computer account and updating /etc/krb5.keytab)
+    - name: Joining the AD realm (creating AD computer account and updating /etc/krb5.keytab)
       shell: echo '{{ hostvars[groups['domain_controllers'][0]].ansible_password }}' | realm join --verbose --client-software=sssd -U {{ hostvars[groups['domain_controllers'][0]].ansible_user }} {{ dns_domain_name | upper }}
       register: joining_ad
       failed_when: "'Successfully discovered' not in joining_ad.stderr"
-      #ignore_errors: yes
     - debug:
         msg: "{{ joining_ad }}"
     - name: Creating AD server admin group
       shell: echo '{{ hostvars[groups['domain_controllers'][0]].ansible_password }}' | adcli create-group ADM_{{ inventory_hostname }} --stdin-password --domain={{ dns_domain_name | upper }} -U {{ hostvars[groups['domain_controllers'][0]].ansible_user }}
-      tags: never
+    - name: Configuring sudoers
+      template:
+        src: ADsudoers.j2
+        dest: /etc/sudoers.d/ADsudoers
+        owner: root
+        group: root
+        mode: 0440
     - name: Configuring sssd.conf
       template:
         src: sssd.j2
@@ -81,14 +86,6 @@
         owner: root
         group: root
         mode: 0644
-      tags: never
-    - name: Configuring sudoers
-      template:
-        src: ADsudoers.j2
-        dest: /etc/sudoers.d/ADsudoers
-        owner: root
-        group: root
-        mode: 0440
       tags: never
     - name: Configuring PAM/SSHD to use SSSD
       shell: authselect select sssd with-mkhomedir --force

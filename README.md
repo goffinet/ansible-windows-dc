@@ -189,6 +189,10 @@ PS C:\Users\john.doe> $env:UserDomain
 EXAMPLE
 PS C:\Users\john.doe> $env:ComputerName
 WKS1
+PS C:\Users\vagrant.EXAMPLE> (Get-ADDomain).DNSRoot
+example.com
+PS C:\Users\vagrant.EXAMPLE> (Get-WmiObject Win32_ComputerSystem).Domain
+example.com
 PS C:\Users\john.doe> exit
 
 example\john.doe@WKS1 C:\Users\john.doe>exit
@@ -197,9 +201,18 @@ Connection to wks1 closed.
 logout
 ```
 
+## Fake users and groups feeding
+
+```bash
+ansible-playbook playbooks/add_users_groups.yml -e "$(python3 fakergen.py 1000 | jq -c -r '.')"
+```
+
 ## Next steps
 
 - Create a share on Workstation for a Group and mount it on the others
+- Ubuntu joins the domain
+- Twice DC
+- ...
 - Users and Permissions Management
 
 ## Credits
