@@ -1,0 +1,57 @@
+---
+- hosts: domain_controllers
+  gather_facts: True
+  vars:
+    groups_list: []
+    store_domain_users_in_a_local_yaml_file: True
+    timestamp: "{{ ansible_date_time.iso8601_basic_short }}"
+    domain_users_local_filepath: "{{ playbook_dir}}/vars"
+    domain_users_local_filename: "{{ timestamp }}_domain_users.yml"
+  tasks:
+    - name: Store domain_users in a local yaml file
+      ansible.builtin.copy:
+        dest: "{{ domain_users_local_filepath}}/{{ domain_users_local_filename }}"
+        content: "{{ domain_users | to_yaml }}"
+      delegate_to: localhost
+      when:
+        - store_domain_users_in_a_local_yaml_file is defined
+        - store_domain_users_in_a_local_yaml_file|bool == True
+    - name: Get the list of groups
+      set_fact:
+        groups_list: "{{ groups_list + item.groups }}"
+      loop: "{{ domain_users }}"
+      no_log: true
+    - name: Sort and unique list of groups
+      set_fact:
+        groups_list: "{{ groups_list | sort | unique }}"
+    - debug:
+        var: groups_list
+      tags: never
+    - name: Ensure the groups exist
+      community.windows.win_domain_group:
+        name: "{{ item }}"
+        scope: global
+#        path: "OU=Groups,{{ domain_dn }}"
+      loop: "{{ groups_list }}"
+    - name: Ensure user is present in OU
+      community.windows.win_domain_user:
+        name: "{{ item.firstname | lower }}.{{ item.surname | lower }}"
+        firstname: "{{ item.firstname | lower }}"
+        surname: "{{ item.surname | lower }}"
+        upn: "{{ item.firstname | lower }}.{{ item.surname | lower }}@{{ dns_domain_name | lower }}"
+        password: "{{ item.password }}"
+        state: present
+        path: "CN=Users,{{ domain_dn }}"
+        password_never_expires: "{{ item.password_never_expires | default('yes') }}"
+        groups: "{{ item.groups }}"
+      loop: "{{ domain_users }}"
+      no_log: true
+    - name: Add the  user to groups.
+      community.windows.win_domain_group_membership:
+        name: "{{ item.1 }}"
+        members:
+          - "{{ dns_domain_name }}\\{{ item.0.firstname | lower }}.{{ item.0.surname | lower }}"
+        state: present
+      loop: "{{ domain_users | subelements('groups') }}"
+      no_log: true
+      tags: never

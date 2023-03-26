@@ -1,0 +1,68 @@
+---
+# https://cocomelonc.github.io/tutorial/2022/04/20/malware-pers-1.html
+- hosts: wks2
+  tasks:
+    - name: Ensure that the folder to share exists
+      ansible.windows.win_file:
+        path: C:\Temp\shares\public
+        state: directory
+    - name: Create the share
+      ansible.windows.win_share:
+        name: public
+        description: top secret share
+        path: C:\Temp\shares\public
+        list: yes
+        full: Administrators
+        read: Domain Users
+- hosts: wks1
+  vars:
+    ansible_connection: ssh
+    ansible_port: 22
+    ansible_become: yes
+    ansible_become_method: runas
+    ansible_become_user: SYSTEM
+    git_repos:
+      - "2022-04-20-malware-pers-1"
+      - "2022-04-26-malware-pers-2"
+    drive: Z
+  tasks:
+    - win_shell: |
+        net use *
+        Get-PSDrive -Name Z
+      register: getdrivez
+      changed_when: getdrivez.rc != 0
+      ignore_errors: true
+    - name: Delete any mapped drives under Z
+      community.windows.win_mapped_drive:
+        letter: "{{ drive }}"
+        state: absent
+      changed_when: getdrivez.rc != 0
+    - name: Create a mapped drive under Z
+      community.windows.win_mapped_drive:
+        letter: "{{ drive }}"
+        path: '\\wks2\public'
+      changed_when: getdrivez.rc != 0
+    - name: Ensure Chocolatey installed from chocolatey repo
+      chocolatey.chocolatey.win_chocolatey:
+        name: chocolatey
+        state: present
+        source: https://chocolatey.org/install.ps1
+    - name: Install softwares
+      chocolatey.chocolatey.win_chocolatey:
+        name:
+          - git
+          - unzip
+          - mingw
+    - name: Obtain information about a folder
+      ansible.windows.win_stat:
+        path: 'Z:\{{ item }}'
+      register: folder_info
+      loop: "{{ git_repos }}"
+      tags: now
+    - debug:
+        var: folder_info
+      tags: now
+#      - name: Git checkout
+#        ansible.windows.win_shell: |
+#          Z:\
+#          git clone https://github.com/cocomelonc/{{ item }}.git

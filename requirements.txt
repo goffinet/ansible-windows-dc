@@ -1,1 +1,3 @@
 pywinrm[credssp]
+Faker
+unidecode

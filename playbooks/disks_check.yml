@@ -1,0 +1,54 @@
+# ansible-playbook disks_check.yml -l wks1 -e 'disk_limit=0.2 disk_path=D:\Temp'
+- hosts: windows
+  gather_facts: false
+  vars:
+    disk_path: C:\Temp
+    disk_limit: 0.7
+  tasks:
+
+    - name: Obtain information about a folder
+      ansible.windows.win_stat:
+        path: "{{  disk_path }}"
+
+    - name: Select the disk letter
+      ansible.builtin.set_fact:
+        disk_letter: "{{  disk_path | win_splitdrive | first | list | first }}" 
+
+    - name: get disk free space
+      ansible.windows.win_shell: 'Get-PsDrive {{ disk_letter  }} | ConvertTo-Json'
+      register: psdrive_output
+
+    - name: extract free space
+      ansible.builtin.set_fact:
+        psdrive_output_json: "{{ psdrive_output.stdout|from_json}}"
+
+    - name: Disk space calculation
+      ansible.builtin.set_fact:
+        disk_facts:
+          total_size: "{{ psdrive_output_json.Used + psdrive_output_json.Free }}"
+          total_size_human: "{{ (psdrive_output_json.Used + psdrive_output_json.Free) | filesizeformat }}"
+          used_size: "{{ psdrive_output_json.Used }}"
+          used_size_human: "{{ psdrive_output_json.Used | filesizeformat }}"
+          used_ratio: "{{ psdrive_output_json.Used|float / (psdrive_output_json.Used + psdrive_output_json.Free)|float }}"
+          free_size: "{{ psdrive_output_json.Free }}"
+          free_size_human: "{{ psdrive_output_json.Free | filesizeformat }}"
+
+    - name: Print usage
+      ansible.builtin.debug:
+        var: disk_facts
+
+    - name: Assert that                                                                                                                
+      ansible.builtin.assert:
+        that: disk_facts.used_ratio|float < disk_limit|float
+        fail_msg: >-
+          [{{ inventory_hostname | upper }}]: Disk usage {{ disk_facts.used_size_human }} ({{ 100 * (disk_facts.used_ratio|float) | round(3, 'common') }}%)
+          exceeds {{ 100 * (disk_limit|float) | round(3, 'common') }}%
+          of total space ({{ disk_facts.total_size_human }})
+        quiet: true
+      any_errors_fatal: false
+      ignore_errors: true
+      register: assert_disk
+
+    - debug:
+        var: assert_disk.msg
+      when: assert_disk.evaluated_to is false
